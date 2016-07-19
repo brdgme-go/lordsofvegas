@@ -1,4 +1,4 @@
-package lords_of_vegas
+package lordsofvegas
 
 type BoardSpace struct {
 	Location      string

@@ -1,4 +1,4 @@
-package lords_of_vegas
+package lordsofvegas
 
 import (
 	"errors"
@@ -7,9 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Miniand/brdg.me/command"
-	"github.com/Miniand/brdg.me/game/helper"
-	"github.com/Miniand/brdg.me/game/log"
+	"github.com/brdgme/brdgme"
 )
 
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -28,8 +26,7 @@ const (
 )
 
 type Game struct {
-	Players []string
-	Log     *log.Log
+	Players int
 
 	CurrentPlayer   int
 	Money           map[int]int
@@ -43,11 +40,6 @@ type Game struct {
 	Finished bool
 }
 
-func (g *Game) Commands(player string) []command.Command {
-	commands := []command.Command{}
-	return commands
-}
-
 func (g *Game) Name() string {
 	return "Lords of Vegas"
 }
@@ -56,20 +48,11 @@ func (g *Game) Identifier() string {
 	return "lords_of_vegas"
 }
 
-func (g *Game) Encode() ([]byte, error) {
-	return helper.Encode(g)
-}
-
-func (g *Game) Decode(data []byte) error {
-	return helper.Decode(g, data)
-}
-
-func (g *Game) Start(players []string) error {
-	if l := len(players); l < 2 || l > 6 {
-		return errors.New("only for 2-6 players")
+func (g *Game) Start(players int) (error, []brdgme.Log) {
+	if players < 2 || players > 6 {
+		return errors.New("only for 2-6 players"), nil
 	}
 	g.Players = players
-	g.Log = log.New()
 
 	bspLen := len(BoardSpaces)
 	g.Deck = make([]string, bspLen)
@@ -85,20 +68,20 @@ func (g *Game) Start(players []string) error {
 	g.Board = map[string]BoardSpaceState{}
 
 	// Draw two cards for each player for starting money and locations.
-	for p := range g.Players {
+	for p := 0; p <= g.Players; p++ {
 		for i := 0; i < StartingCards; i++ {
 			card, ok := g.DrawCard()
 			if !ok {
-				return errors.New("unable to draw starting card for player")
+				return errors.New("unable to draw starting card for player"), nil
 			}
-			if len(g.Players) == 2 && !Valid2PLoc(card) {
+			if g.Players == 2 && !Valid2PLoc(card) {
 				// This space isn't used in two player games, try again.
 				i--
 				continue
 			}
 			space, ok := BoardSpaceByLocation[card]
 			if !ok {
-				return fmt.Errorf("unable to find space for location %s", card)
+				return fmt.Errorf("unable to find space for location %s", card), nil
 			}
 			g.Board[card] = BoardSpaceState{
 				Owned: true,
@@ -108,9 +91,9 @@ func (g *Game) Start(players []string) error {
 		}
 	}
 
-	g.CurrentPlayer = rnd.Int() % len(g.Players)
+	g.CurrentPlayer = rnd.Int() % g.Players
 
-	return g.StartTurn()
+	return g.StartTurn(), nil
 }
 
 func (g *Game) StartTurn() error {
@@ -129,7 +112,7 @@ func (g *Game) StartTurn() error {
 			return fmt.Errorf("could not find board space for %s", loc)
 		}
 		g.PayCasino(bs.PayCasino)
-		if len(g.Players) > 2 || Valid2PLoc(loc) {
+		if g.Players > 2 || Valid2PLoc(loc) {
 			break
 		}
 	}
@@ -147,7 +130,7 @@ func (g *Game) PayCasino(casino int) {
 }
 
 func (g *Game) EndTurn() {
-	g.CurrentPlayer = (g.CurrentPlayer + 1) % len(g.Players)
+	g.CurrentPlayer = (g.CurrentPlayer + 1) % g.Players
 }
 
 // Valid2PLoc determines if a location is used in two player games.
@@ -169,7 +152,7 @@ func (g *Game) EndGame() {
 	g.Finished = true
 }
 
-func (g *Game) PlayerList() []string {
+func (g *Game) NumPlayers() int {
 	return g.Players
 }
 
@@ -181,17 +164,9 @@ func (g *Game) Winners() []string {
 	return nil
 }
 
-func (g *Game) WhoseTurn() []string {
+func (g *Game) WhoseTurn() []int {
 	if g.IsFinished() {
-		return []string{}
+		return nil
 	}
-	return []string{g.Players[g.CurrentPlayer]}
-}
-
-func (g *Game) GameLog() *log.Log {
-	return g.Log
-}
-
-func (g *Game) PlayerNum(player string) (int, bool) {
-	return helper.StringInStrings(player, g.Players)
+	return []int{g.CurrentPlayer}
 }
